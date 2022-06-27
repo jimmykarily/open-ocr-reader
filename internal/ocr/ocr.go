@@ -7,7 +7,17 @@ import (
 	"github.com/pkg/errors"
 )
 
-func Parse(img *img.Image) (string, error) {
+type OCR interface {
+	Parse(img *img.Image) (string, error)
+}
+
+type TesseractOCR struct{}
+
+func NewTesseractOCR() TesseractOCR {
+	return TesseractOCR{}
+}
+
+func (t TesseractOCR) Parse(img *img.Image) (string, error) {
 	//l, _ := gosseract.GetAvailableLanguages()
 	//fmt.Printf("l = %+v\n", l)
 

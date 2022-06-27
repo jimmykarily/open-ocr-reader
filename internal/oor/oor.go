@@ -14,8 +14,14 @@ import (
 	"github.com/pkg/errors"
 )
 
+type ParserDeps struct {
+	Processor process.Processor
+	OCR       ocr.OCR
+	TTS       tts.TTS
+}
+
 // Parse takes all the steps needed to go from a photo of a book page to audio
-func Parse(imgPath string, processor process.Processor) error {
+func Parse(imgPath string, deps ParserDeps) error {
 	logger := logger.New()
 
 	textImg, err := img.New(imgPath)
@@ -35,7 +41,7 @@ func Parse(imgPath string, processor process.Processor) error {
 	// }
 
 	logger.Log("Processing the photo...")
-	processedImg, err := processor.Process(textImg)
+	processedImg, err := deps.Processor.Process(textImg)
 	if err != nil {
 		return errors.Wrap(err, "processing the image")
 	}
@@ -44,7 +50,7 @@ func Parse(imgPath string, processor process.Processor) error {
 
 	// TODO: Make OCR an interface
 	logger.Log("Running OCR on the photo...")
-	text, err := ocr.Parse(processedImg)
+	text, err := deps.OCR.Parse(processedImg)
 	if err != nil {
 		return errors.Wrap(err, "running OCR on the image")
 	}
@@ -55,7 +61,7 @@ func Parse(imgPath string, processor process.Processor) error {
 	// Maybe the tts package can "stream" the audio, as in "play before the whole
 	// text is parsed"?
 	logger.Log("Running text to speech on the photo...")
-	err = tts.Speak(text)
+	err = deps.TTS.Speak(text)
 	if err != nil {
 		return errors.Wrap(err, "running text to speech on the text")
 	}

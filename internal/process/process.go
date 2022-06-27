@@ -7,15 +7,15 @@ import (
 	"github.com/jimmykarily/open-ocr-reader/internal/img"
 )
 
+type Processor interface {
+	Process(*img.Image) (*img.Image, error)
+}
+
 type DefaultProcessor struct{}
 
 // NewDefaultProcessor returns a DefaultProcessor
 func NewDefaultProcessor() DefaultProcessor {
 	return DefaultProcessor{}
-}
-
-type Processor interface {
-	Process(*img.Image) (*img.Image, error)
 }
 
 // Process should do at least these:
