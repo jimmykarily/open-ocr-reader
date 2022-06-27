@@ -1,5 +1,5 @@
 VERSION ?= $(shell git describe --tags)
-CGO_ENABLED ?= 0
+CGO_ENABLED ?= 1 # https://github.com/otiai10/gosseract/issues/138#issuecomment-488233324
 
 export LDFLAGS += -X github.com/epinio/epinio/internal/version.Version=$(VERSION)
 

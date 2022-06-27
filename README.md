@@ -33,3 +33,7 @@ The process to get from text on paper, to audio is described in the following im
 ## Alternatives to this project
 
 - https://www.readforme.io/ (source code?)
+
+## Useful links:
+
+- Page frame detection: https://users.iit.demokritos.gr/~bgat/CBDAR_BORDERS.pdf
