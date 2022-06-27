@@ -7,3 +7,6 @@ build:  build-amd64
 
 build-amd64:
 	GOARCH="amd64" GOOS="linux" CGO_ENABLED=$(CGO_ENABLED) go build $(BUILD_ARGS) -ldflags '$(LDFLAGS)' -o dist/oor-linux-amd64
+
+test:
+	ginkgo ./...
