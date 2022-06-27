@@ -29,3 +29,7 @@ in a voice as natural as possible
 The process to get from text on paper, to audio is described in the following image:
 
 ![architecture](assets/architecture.svg)
+
+## Alternatives to this project
+
+- https://www.readforme.io/ (source code?)
