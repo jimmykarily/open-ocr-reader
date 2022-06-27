@@ -21,3 +21,9 @@ in a voice as natural as possible
 
 - Create new OCR libraries
 - Create new Text to speech libraries
+
+## Architecture
+
+The process to get from text on paper, to audio is described in the following image:
+
+![architecture](assets/architecture.svg)
