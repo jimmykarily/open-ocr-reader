@@ -2,6 +2,7 @@ package main
 
 import (
 	"github.com/jimmykarily/open-ocr-reader/internal/logger"
+	"github.com/jimmykarily/open-ocr-reader/internal/oor"
 	"github.com/jimmykarily/open-ocr-reader/internal/version"
 	"github.com/spf13/cobra"
 )
@@ -15,6 +16,8 @@ var rootCmd = &cobra.Command{
 	Run: func(cmd *cobra.Command, args []string) {
 		logger := logger.New()
 		logger.Logf("args = %+v\n", args)
+
+		oor.Parse()
 	},
 }
 
