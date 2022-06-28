@@ -50,10 +50,12 @@ func Parse(imgPath string, deps ParserDeps) error {
 
 	// TODO: Make OCR an interface
 	logger.Log("Running OCR on the photo...")
-	text, err := deps.OCR.Parse(processedImg)
-	if err != nil {
-		return errors.Wrap(err, "running OCR on the image")
-	}
+	// text, err := deps.OCR.Parse(processedImg)
+	// if err != nil {
+	// 	return errors.Wrap(err, "running OCR on the image")
+	// }
+	fmt.Printf("processedImg = %+v\n", processedImg)
+	text := ""
 
 	fmt.Printf("text = %+v\n", text)
 
