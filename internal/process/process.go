@@ -3,7 +3,6 @@
 package process
 
 import (
-	"fmt"
 	goimage "image"
 	"image/color"
 	"os"
@@ -37,19 +36,18 @@ func NewDefaultProcessor() DefaultProcessor {
 	return DefaultProcessor{}
 }
 
-// Process should do at least these:
+// Process prepares a photo of a book page for OCR
+// These are the steps
 // - Make the image black and white
-// - Deskew (align the text vertically)
-// - Remove noise
-// - Improve contrast
-// - Detect block of text (find bounding box)
-// - Crop image to the bounding box (opencv)
-// - Apply 4 point image transformation (opencv)
+// - Find the biggest block of text
+// - Find a containing rectangle of that block of text and deskew the image
+//   based on that rectangle (align the text vertically)
+// - Crop image to that rectangle
+// Heavily inspried by this:
+// https://github.com/JPLeoRX/opencv-text-deskew/blob/master/python-service/services/deskew_service.py
+// https://becominghuman.ai/how-to-automatically-deskew-straighten-a-text-image-using-opencv-a0c30aed83df
+// https://github.com/milosgajdos/gocv-playground/blob/master/04_Geometric_Transformations/README.md#perspective-transformation
 func (p DefaultProcessor) Process(image *img.Image) (*img.Image, error) {
-	// imgObject := image.Object
-	// imgObject = imaging.Grayscale(imgObject)
-	// imgObject = imaging.AdjustContrast(imgObject, 20)
-	// imgObject = imaging.Sharpen(imgObject, 2)
 
 	imgPath, err := image.StoreTmp()
 	if err != nil {
@@ -57,49 +55,101 @@ func (p DefaultProcessor) Process(image *img.Image) (*img.Image, error) {
 	}
 	defer os.Remove(imgPath)
 
-	cvImgOrigin := gocv.IMRead(imgPath, gocv.IMReadColor)
+	cvImg := gocv.IMRead(imgPath, gocv.IMReadColor)
+
+	convertToGrayscale(&cvImg)
+	deskew(&cvImg)
 	//showImg(cvImg)
 
-	cvImg := cvImgOrigin.Clone()
+	result, err := cvImg.ToImage()
+	if err != nil {
+		return nil, errors.Wrap(err, "converting Mat to image")
+	}
+	image.Object = result
 
-	gocv.CvtColor(cvImg, &cvImg, gocv.ColorBGRToGray)
-	showImg(cvImg)
+	return image, nil
+}
 
-	gocv.GaussianBlur(cvImg, &cvImg, goimage.Point{}, 1, 1, gocv.BorderDefault)
-	//showImg(cvImg)
+func convertToGrayscale(i *gocv.Mat) {
+	gocv.CvtColor(*i, i, gocv.ColorBGRToGray)
+}
 
-	_ = gocv.Threshold(cvImg, &cvImg, 0, 255, gocv.ThresholdBinaryInv+gocv.ThresholdOtsu)
+func deskew(i *gocv.Mat) {
+	tmpImg := i.Clone()
+
+	gocv.GaussianBlur(tmpImg, &tmpImg, goimage.Point{}, 1, 1, gocv.BorderDefault)
+	_ = gocv.Threshold(tmpImg, &tmpImg, 0, 255, gocv.ThresholdBinaryInv+gocv.ThresholdOtsu)
 
 	kernel := gocv.GetStructuringElement(gocv.MorphRect, goimage.Point{5, 10})
+	gocv.DilateWithParams(tmpImg, &tmpImg, kernel, goimage.Point{}, 5, gocv.BorderDefault, color.RGBA{})
 
-	gocv.DilateWithParams(cvImg, &cvImg, kernel, goimage.Point{}, 5, gocv.BorderDefault, color.RGBA{})
-	showImg(cvImg)
-
-	// gocv.ErodeWithParams(cvImg, &cvImg, kernel, goimage.Point{}, 5, int(gocv.BorderDefault))
-	// showImg(cvImg)
-
-	points := gocv.FindContours(cvImg, gocv.RetrievalList, gocv.ChainApproxSimple)
+	points := gocv.FindContours(tmpImg, gocv.RetrievalList, gocv.ChainApproxSimple)
 	contours := ContoursBySize{}
-	for i := 1; i < points.Size(); i++ {
-		contours = append(contours, Contour{OriginalIdx: i, Contour: points.At(i)})
+	for j := 1; j < points.Size(); j++ {
+		contours = append(contours, Contour{OriginalIdx: j, Contour: points.At(j)})
 	}
 	sort.Sort(contours)
 
-	colors := []color.RGBA{
-		{255, 0, 0, 255},
-		{0, 255, 0, 255},
-		{0, 0, 255, 255},
-	}
-	totalColors := len(colors)
-	for i, c := range contours {
-		gocv.DrawContours(&cvImgOrigin, points, i, colors[i%totalColors], 4)
-		fmt.Printf("gocv.ContourArea(c) = %+v\n", gocv.ContourArea(c.Contour))
+	// TODO: Debug lines, remove
+	// colors := []color.RGBA{
+	// 	{255, 0, 0, 255},
+	// 	{0, 255, 0, 255},
+	// 	{0, 0, 255, 255},
+	// }
+	// for j := range contours {
+	// 	gocv.DrawContours(&tmpImg, points, j, colors[j%len(colors)], 1)
+	// }
+	maxContour := contours[len(contours)-1]
+	//gocv.DrawContours(&tmpImg, points, maxContour.OriginalIdx, color.RGBA{100, 80, 20, 255}, 2)
+
+	rect := gocv.MinAreaRect(maxContour.Contour)
+	//rectV := gocv.NewPointsVectorFromPoints([][]goimage.Point{rect.Points})
+	//gocv.DrawContours(i, rectV, -1, color.RGBA{0, 255, 0, 255}, 3)
+	// showImg(*i)
+
+	// https://github.com/milosgajdos/gocv-playground/blob/master/04_Geometric_Transformations/README.md#perspective-transformation
+	newPoints := []goimage.Point{
+		{0, rect.Height},
+		{0, 0},
+		{rect.Width, 0},
+		{rect.Width, rect.Height},
 	}
 
-	gocv.DrawContours(&cvImgOrigin, points, contours[len(contours)-1].OriginalIdx, color.RGBA{100, 80, 20, 255}, 10)
-	showImg(cvImgOrigin)
+	transform := gocv.GetPerspectiveTransform(
+		gocv.NewPointVectorFromPoints(rect.Points),
+		gocv.NewPointVectorFromPoints(newPoints),
+	)
+	gocv.WarpPerspective(*i, i, transform, goimage.Point{rect.Width, rect.Height})
 
-	return image, nil
+	// TODO: Not needed? We do it in one step above
+	// TODO: If we want to detect more than one blocks of text, then we need
+	// to first deskew the original image without cropping.
+	//
+	// skewAngle := calculateSkewAngle(rect.Angle)
+	// rotateImg(i, skewAngle)
+}
+
+// calculateSkewAngle take the angle of the min area rectagle and return the
+// angle to rotate the image in order to deskew the document.
+// Currently WarpPerspective does both in one step.
+func calculateSkewAngle(angle float64) float64 {
+	if angle < -45 {
+		return 90 + angle
+	}
+	if angle > 45 {
+		return -1 * (90 - angle)
+	}
+
+	return angle
+}
+
+// Rotate the image around its center
+func rotateImg(i *gocv.Mat, angle float64) {
+	size := i.Size()
+	width := size[1]
+	height := size[0]
+	rMatrix := gocv.GetRotationMatrix2D(goimage.Point{X: width / 2.0, Y: height / 2.0}, angle, 1.0)
+	gocv.WarpAffineWithParams(*i, i, rMatrix, goimage.Point{X: width, Y: height}, gocv.InterpolationCubic, gocv.BorderReplicate, color.RGBA{0, 0, 0, 0})
 }
 
 func showImg(i gocv.Mat) {
