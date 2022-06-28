@@ -46,9 +46,6 @@ func Parse(imgPath string, deps ParserDeps) error {
 		return errors.Wrap(err, "processing the image")
 	}
 
-	// TODO: Detect blocks of text?
-
-	// TODO: Make OCR an interface
 	logger.Log("Running OCR on the photo...")
 	text, err := deps.OCR.Parse(processedImg)
 	if err != nil {

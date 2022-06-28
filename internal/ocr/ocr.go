@@ -2,6 +2,8 @@
 package ocr
 
 import (
+	"os"
+
 	"github.com/jimmykarily/open-ocr-reader/internal/img"
 	"github.com/otiai10/gosseract/v2"
 	"github.com/pkg/errors"
@@ -25,6 +27,7 @@ func (t TesseractOCR) Parse(img *img.Image) (string, error) {
 	if err != nil {
 		return "", errors.Wrap(err, "storing the image to a temp file")
 	}
+	defer os.Remove(imgPath)
 
 	client := gosseract.NewClient()
 	//client.Languages = []string{"ell", "eng"}
