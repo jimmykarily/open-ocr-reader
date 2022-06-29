@@ -3,6 +3,7 @@ module github.com/jimmykarily/open-ocr-reader
 go 1.18
 
 require (
+	github.com/gorilla/mux v1.8.0
 	github.com/onsi/ginkgo/v2 v2.1.4
 	github.com/onsi/gomega v1.19.0
 	github.com/otiai10/gosseract/v2 v2.3.1

@@ -13,6 +13,8 @@ import (
 	"github.com/jimmykarily/open-ocr-reader/internal/tts"
 	"github.com/jimmykarily/open-ocr-reader/internal/version"
 	"github.com/spf13/cobra"
+
+	"github.com/gorilla/mux"
 )
 
 var rootCmd = &cobra.Command{
@@ -55,11 +57,10 @@ var serverCmd = &cobra.Command{
 		logger := logger.New()
 		logger.Log("Starting the server")
 
-		mux := http.NewServeMux()
-		fileServer := http.FileServer(http.Dir("./static/"))
-		mux.Handle("/static/", http.StripPrefix("/static", fileServer))
-
-		mux.HandleFunc("/", controllers.Home)
+		r := mux.NewRouter()
+		r.HandleFunc("/", controllers.Home)
+		r.HandleFunc("/upload", controllers.ImageUpload).Methods("POST")
+		r.PathPrefix("/static/").Handler(http.StripPrefix("/static/", http.FileServer(http.Dir("./static/"))))
 
 		// https://gist.github.com/xcsrz/538e291d12be6ee9a8c7
 		var port string
@@ -71,7 +72,7 @@ var serverCmd = &cobra.Command{
 			logger.Errorf("starting the server %s", err.Error())
 		}
 		logger.Logf("listening on %s", listener.Addr().String())
-		http.Serve(listener, mux)
+		http.Serve(listener, r)
 	},
 }
 
