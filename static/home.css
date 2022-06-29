@@ -18,3 +18,7 @@ main {
 .desktop_from{
   display: none;
 }
+
+.camera_buttons{
+  padding-bottom: 15px;
+}
