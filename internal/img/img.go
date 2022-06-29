@@ -7,6 +7,7 @@ import (
 	"io/ioutil"
 	"os"
 
+	_ "image/jpeg"
 	"image/png"
 
 	"github.com/pkg/errors"

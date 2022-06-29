@@ -1,11 +1,15 @@
 package controllers
 
 import (
-	"fmt"
 	"io"
 	"io/ioutil"
 	"net/http"
+	"os"
 
+	"github.com/jimmykarily/open-ocr-reader/internal/ocr"
+	"github.com/jimmykarily/open-ocr-reader/internal/oor"
+	"github.com/jimmykarily/open-ocr-reader/internal/process"
+	"github.com/jimmykarily/open-ocr-reader/internal/tts"
 	"github.com/pkg/errors"
 )
 
@@ -21,8 +25,18 @@ func ImageUpload(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, err.Error(), status)
 		return
 	}
-	fmt.Printf("tmpFile = %+v\n", tmpFile)
-	//defer os.Remove(tmpFile)
+	defer os.Remove(tmpFile)
+
+	parserDeps := oor.ParserDeps{
+		Processor: process.NewDefaultProcessor(),
+		OCR:       ocr.NewTesseractOCR(),
+		TTS:       tts.NewDefaultTTS(),
+	}
+
+	if err := oor.Parse(tmpFile, parserDeps); err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
 
 	http.Redirect(w, r, r.Header.Get("Referer"), http.StatusTemporaryRedirect)
 }
