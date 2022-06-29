@@ -1,7 +1,6 @@
 package main
 
 import (
-	"mime"
 	"net"
 	"net/http"
 	"os"
@@ -61,9 +60,6 @@ var serverCmd = &cobra.Command{
 		mux.Handle("/static/", http.StripPrefix("/static", fileServer))
 
 		mux.HandleFunc("/", controllers.Home)
-
-		mime.AddExtensionType("css", "text/css")
-		mime.AddExtensionType("js", "text/javascript")
 
 		// https://gist.github.com/xcsrz/538e291d12be6ee9a8c7
 		var port string

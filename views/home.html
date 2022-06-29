@@ -1,9 +1,20 @@
 [[define "title"]]Open OCR Reader[[end]]
 
 [[define "body"]]
-<h1 class="mt-5">This is the body</h1>
+<h1 class="mt-5">Click on the page to capture an image</h1>
+
+<div id="video-container">
+<video id="video" autoplay></video>
+</div>
+
+
+<canvas id="canvas"></canvas>
 [[ end ]]
 
 [[define "page_javascript"]]
 <script src="/static/home.js"></script>
+[[ end ]]
+
+[[define "page_css"]]
+<link rel="stylesheet" href="/static/home.css">
 [[ end ]]
