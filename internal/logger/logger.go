@@ -29,3 +29,7 @@ func (l Logger) Logf(msg string, v ...any) {
 func (l Logger) Error(msg string) {
 	l.ErrorLogger.Println(msg)
 }
+
+func (l Logger) Errorf(msg string, v ...any) {
+	l.ErrorLogger.Printf(msg, v)
+}
