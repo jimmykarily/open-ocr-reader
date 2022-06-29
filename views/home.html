@@ -13,8 +13,28 @@
 <label for="image-upload" class="image-upload-btn">
 </label>
 <input id="image-upload" name="image-file" type="file" accept="image/*" capture>
+<input type="submit" id="submitButton" name="submitButton" />
 </form>
 </div>
+
+
+
+
+
+<div id="desktop_canvas">
+    <video id="video" width="320" height="240" autoplay></video>
+    <canvas id="canvas" width="1200" height="1200"></canvas>
+    <div>
+      <button id="start-camera">Start Camera</button>
+      <button id="click-photo">Click Photo</button>
+    </div>
+
+    <form id="myAwesomeForm" class="desktop_from" method="post" action="/upload" >
+        <input type="text" id="filename" name="filename" /> <!-- Filename -->
+        <input type="submit" id="submitButton" name="submitButton" /> <!-- Submit -->
+    </form>
+</div>
+
 [[ end ]]
 
 [[define "page_javascript"]]

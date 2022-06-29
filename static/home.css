@@ -1,6 +1,20 @@
 main {
   text-align: center;
 }
-#image-form {
+
+
+@media only screen and (max-width: 754px) {
+  #image-form {
+    display: none;
+  }
+}
+
+
+#desktop_canvas{
+  margin-top:20px;
+  text-align: center;
+}
+
+.desktop_from{
   display: none;
 }
