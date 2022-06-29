@@ -1,6 +1,12 @@
 package main
 
 import (
+	"mime"
+	"net"
+	"net/http"
+	"os"
+
+	"github.com/jimmykarily/open-ocr-reader/controllers"
 	"github.com/jimmykarily/open-ocr-reader/internal/logger"
 	"github.com/jimmykarily/open-ocr-reader/internal/ocr"
 	"github.com/jimmykarily/open-ocr-reader/internal/oor"
@@ -40,8 +46,42 @@ var parseCmd = &cobra.Command{
 	},
 }
 
+var serverCmd = &cobra.Command{
+	Use:           "server",
+	Short:         "start the web server",
+	Long:          `This command start a web server that hosts the web interface of this application. It starts on a random port or "PORT" environment variable value, if set`,
+	SilenceErrors: true,
+	Args:          cobra.ExactArgs(0),
+	Run: func(cmd *cobra.Command, args []string) {
+		logger := logger.New()
+		logger.Log("Starting the server")
+
+		mux := http.NewServeMux()
+		fileServer := http.FileServer(http.Dir("./static/"))
+		mux.Handle("/static/", http.StripPrefix("/static", fileServer))
+
+		mux.HandleFunc("/", controllers.Home)
+
+		mime.AddExtensionType("css", "text/css")
+		mime.AddExtensionType("js", "text/javascript")
+
+		// https://gist.github.com/xcsrz/538e291d12be6ee9a8c7
+		var port string
+		if port = os.Getenv("PORT"); port == "" {
+			port = "0"
+		}
+		listener, err := net.Listen("tcp", "0.0.0.0:"+port)
+		if err != nil {
+			logger.Errorf("starting the server %s", err.Error())
+		}
+		logger.Logf("listening on %s", listener.Addr().String())
+		http.Serve(listener, mux)
+	},
+}
+
 func init() {
 	rootCmd.AddCommand(parseCmd)
+	rootCmd.AddCommand(serverCmd)
 }
 
 func main() {
