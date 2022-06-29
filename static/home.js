@@ -16,13 +16,11 @@ if (isMobile){
    document.addEventListener('click', function() {
       imageInput.click();
    });
-
-   imageInput.addEventListener('change', function() {
-      document.querySelector("#image-form").submit();
-   });
 }
 
-
+imageInput.addEventListener('change', function() {
+   document.querySelector("#image-form").submit();
+});
 
 
 
