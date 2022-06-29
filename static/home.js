@@ -51,7 +51,7 @@ if (isMobile==false){
 
 function appendFileAndSubmit(ImageURL){
    // Get the form
-   var form = document.getElementById("myAwesomeForm");
+   var form = document.getElementById("desktop_from");
 
    // Split the base64 string in data and contentType
    var block = ImageURL.split(";");
