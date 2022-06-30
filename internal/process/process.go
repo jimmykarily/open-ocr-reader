@@ -3,9 +3,11 @@
 package process
 
 import (
+	"fmt"
 	goimage "image"
 	"image/color"
 	"os"
+	"path/filepath"
 	"sort"
 
 	"github.com/jimmykarily/open-ocr-reader/internal/img"
@@ -48,7 +50,6 @@ func NewDefaultProcessor() DefaultProcessor {
 // https://becominghuman.ai/how-to-automatically-deskew-straighten-a-text-image-using-opencv-a0c30aed83df
 // https://github.com/milosgajdos/gocv-playground/blob/master/04_Geometric_Transformations/README.md#perspective-transformation
 func (p DefaultProcessor) Process(image *img.Image) (*img.Image, error) {
-
 	imgPath, err := image.StoreTmp()
 	if err != nil {
 		return nil, errors.Wrap(err, "storing the image to a temp file")
@@ -56,10 +57,16 @@ func (p DefaultProcessor) Process(image *img.Image) (*img.Image, error) {
 	defer os.Remove(imgPath)
 
 	cvImg := gocv.IMRead(imgPath, gocv.IMReadColor)
+	storeDebug(&cvImg, "1-original")
 
 	convertToGrayscale(&cvImg)
+	storeDebug(&cvImg, "2-grayscale")
+
 	deskew(&cvImg)
-	//showImg(cvImg)
+	storeDebug(&cvImg, "9-deskew")
+
+	_ = gocv.Threshold(cvImg, &cvImg, 0, 255, gocv.ThresholdBinary)
+	storeDebug(&cvImg, "10-black-and-white")
 
 	result, err := cvImg.ToImage()
 	if err != nil {
@@ -78,10 +85,14 @@ func deskew(i *gocv.Mat) {
 	tmpImg := i.Clone()
 
 	gocv.GaussianBlur(tmpImg, &tmpImg, goimage.Point{}, 1, 1, gocv.BorderDefault)
-	_ = gocv.Threshold(tmpImg, &tmpImg, 0, 255, gocv.ThresholdBinaryInv+gocv.ThresholdOtsu)
+	storeDebug(&tmpImg, "3-after-deskew")
 
-	kernel := gocv.GetStructuringElement(gocv.MorphRect, goimage.Point{5, 10})
+	_ = gocv.Threshold(tmpImg, &tmpImg, 0, 255, gocv.ThresholdBinaryInv+gocv.ThresholdOtsu)
+	storeDebug(&tmpImg, "4-after-threshold")
+
+	kernel := gocv.GetStructuringElement(gocv.MorphRect, goimage.Point{5, 20})
 	gocv.DilateWithParams(tmpImg, &tmpImg, kernel, goimage.Point{}, 5, gocv.BorderDefault, color.RGBA{})
+	storeDebug(&tmpImg, "5-after-dilate")
 
 	points := gocv.FindContours(tmpImg, gocv.RetrievalList, gocv.ChainApproxSimple)
 	contours := ContoursBySize{}
@@ -90,22 +101,26 @@ func deskew(i *gocv.Mat) {
 	}
 	sort.Sort(contours)
 
-	// TODO: Debug lines, remove
-	// colors := []color.RGBA{
-	// 	{255, 0, 0, 255},
-	// 	{0, 255, 0, 255},
-	// 	{0, 0, 255, 255},
-	// }
-	// for j := range contours {
-	// 	gocv.DrawContours(&tmpImg, points, j, colors[j%len(colors)], 1)
-	// }
+	contouredImage := i.Clone()
+	colors := []color.RGBA{
+		{255, 0, 0, 255},
+		{0, 255, 0, 255},
+		{0, 0, 255, 255},
+	}
+	for j := range contours {
+		gocv.DrawContours(&contouredImage, points, j, colors[j%len(colors)], 1)
+	}
 	maxContour := contours[len(contours)-1]
-	//gocv.DrawContours(&tmpImg, points, maxContour.OriginalIdx, color.RGBA{100, 80, 20, 255}, 2)
+	gocv.DrawContours(&contouredImage, points, maxContour.OriginalIdx, color.RGBA{100, 80, 20, 255}, 2)
+	storeDebug(&contouredImage, "6-contoured")
 
 	rect := gocv.MinAreaRect(maxContour.Contour)
-	//rectV := gocv.NewPointsVectorFromPoints([][]goimage.Point{rect.Points})
-	//gocv.DrawContours(i, rectV, -1, color.RGBA{0, 255, 0, 255}, 3)
-	// showImg(*i)
+
+	// Debug
+	originalCopy := i.Clone()
+	rectV := gocv.NewPointsVectorFromPoints([][]goimage.Point{rect.Points})
+	gocv.DrawContours(&originalCopy, rectV, -1, color.RGBA{0, 255, 0, 255}, 3)
+	storeDebug(&originalCopy, "7-min-rectangle")
 
 	// https://github.com/milosgajdos/gocv-playground/blob/master/04_Geometric_Transformations/README.md#perspective-transformation
 	newPoints := []goimage.Point{
@@ -120,6 +135,7 @@ func deskew(i *gocv.Mat) {
 		gocv.NewPointVectorFromPoints(newPoints),
 	)
 	gocv.WarpPerspective(*i, i, transform, goimage.Point{rect.Width, rect.Height})
+	storeDebug(i, "8-WarpPerspective")
 
 	// TODO: Not needed? We do it in one step above
 	// TODO: If we want to detect more than one blocks of text, then we need
@@ -150,6 +166,16 @@ func rotateImg(i *gocv.Mat, angle float64) {
 	height := size[0]
 	rMatrix := gocv.GetRotationMatrix2D(goimage.Point{X: width / 2.0, Y: height / 2.0}, angle, 1.0)
 	gocv.WarpAffineWithParams(*i, i, rMatrix, goimage.Point{X: width, Y: height}, gocv.InterpolationCubic, gocv.BorderReplicate, color.RGBA{0, 0, 0, 0})
+}
+
+// storeDebug writes an image to the filesystem if OOR_DEBUG env var is set
+func storeDebug(i *gocv.Mat, filename string) {
+	if os.Getenv("OOR_DEBUG") != "" {
+		outPath := filepath.Join("tmp", filename+".jpg")
+		if ok := gocv.IMWrite(outPath, *i); !ok {
+			panic(fmt.Sprintf("Failed to write image: %s\n", outPath))
+		}
+	}
 }
 
 func showImg(i gocv.Mat) {
