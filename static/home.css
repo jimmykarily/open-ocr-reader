@@ -3,22 +3,15 @@ main {
 }
 
 
-@media only screen and (max-width: 754px) {
-  #image-form {
-    display: none;
-  }
+#image-form {
+  display: none;
 }
 
-
-#desktop_canvas{
+#desktop_canvas {
   margin-top:20px;
   text-align: center;
 }
 
-.desktop_from{
+.desktop-form{
   display: none;
-}
-
-.camera_buttons{
-  padding-bottom: 15px;
 }

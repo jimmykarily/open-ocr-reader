@@ -17,19 +17,12 @@
 </form>
 </div>
 
-
-
-
-
 <div id="desktop_canvas">
-    <div class="camera_buttons">
-        <button id="click-photo">Click Photo</button>
-      </div>
-    <video id="video" width="320" height="240" autoplay></video>
+    <video id="video" width="1280" height="720" autoplay></video>
     <br>
-    <canvas id="canvas" width="1200" height="1200"></canvas>
+    <canvas id="canvas" width="1280" height="720"></canvas>
 
-    <form id="desktop_from" class="desktop_from" method="post" action="/upload" >
+    <form id="desktopForm" class="desktop-form" method="post" action="/upload" >
         <input type="text" id="filename" name="filename" /> <!-- Filename -->
         <input type="submit" id="submitButton" name="submitButton" /> <!-- Submit -->
     </form>
@@ -38,8 +31,12 @@
 [[ end ]]
 
 [[define "page_javascript"]]
+[[if .IsMobileAgent ]]
+<script src="/static/home-mobile.js"></script>
+[[ else ]]
 <script src="/static/home.js"></script>
-[[ end ]]
+[[end]]
+[[end]]
 
 [[define "page_css"]]
 <link rel="stylesheet" href="/static/home.css">
