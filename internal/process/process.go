@@ -63,10 +63,9 @@ func (p DefaultProcessor) Process(image *img.Image) (*img.Image, error) {
 	storeDebug(&cvImg, "2-grayscale")
 
 	deskew(&cvImg)
-	storeDebug(&cvImg, "9-deskew")
 
-	_ = gocv.Threshold(cvImg, &cvImg, 0, 255, gocv.ThresholdBinary)
-	storeDebug(&cvImg, "10-black-and-white")
+	_ = gocv.Threshold(cvImg, &cvImg, 140, 255, gocv.ThresholdBinary)
+	storeDebug(&cvImg, "12-black-and-white")
 
 	result, err := cvImg.ToImage()
 	if err != nil {
@@ -83,14 +82,15 @@ func convertToGrayscale(i *gocv.Mat) {
 
 func deskew(i *gocv.Mat) {
 	tmpImg := i.Clone()
+	defer tmpImg.Close()
 
-	gocv.GaussianBlur(tmpImg, &tmpImg, goimage.Point{}, 1, 1, gocv.BorderDefault)
-	storeDebug(&tmpImg, "3-after-deskew")
+	// gocv.GaussianBlur(tmpImg, &tmpImg, goimage.Point{}, 1, 1, gocv.BorderDefault)
+	// storeDebug(&tmpImg, "3-after-gaussionblur")
 
 	_ = gocv.Threshold(tmpImg, &tmpImg, 0, 255, gocv.ThresholdBinaryInv+gocv.ThresholdOtsu)
 	storeDebug(&tmpImg, "4-after-threshold")
 
-	kernel := gocv.GetStructuringElement(gocv.MorphRect, goimage.Point{5, 20})
+	kernel := gocv.GetStructuringElement(gocv.MorphEllipse, goimage.Point{5, 5})
 	gocv.DilateWithParams(tmpImg, &tmpImg, kernel, goimage.Point{}, 5, gocv.BorderDefault, color.RGBA{})
 	storeDebug(&tmpImg, "5-after-dilate")
 
@@ -102,6 +102,7 @@ func deskew(i *gocv.Mat) {
 	sort.Sort(contours)
 
 	contouredImage := i.Clone()
+	defer contouredImage.Close()
 	colors := []color.RGBA{
 		{255, 0, 0, 255},
 		{0, 255, 0, 255},
@@ -118,31 +119,55 @@ func deskew(i *gocv.Mat) {
 
 	// Debug
 	originalCopy := i.Clone()
+	defer originalCopy.Close()
 	rectV := gocv.NewPointsVectorFromPoints([][]goimage.Point{rect.Points})
 	gocv.DrawContours(&originalCopy, rectV, -1, color.RGBA{0, 255, 0, 255}, 3)
 	storeDebug(&originalCopy, "7-min-rectangle")
 
-	// https://github.com/milosgajdos/gocv-playground/blob/master/04_Geometric_Transformations/README.md#perspective-transformation
-	newPoints := []goimage.Point{
-		{0, rect.Height},
-		{0, 0},
-		{rect.Width, 0},
-		{rect.Width, rect.Height},
+	skewAngle := calculateSkewAngle(rect.Angle)
+	rotateImg(i, rect.Center, skewAngle)
+	storeDebug(i, "9-deskew")
+
+	straightRectPoints := gocv.NewPointsVectorFromPoints([][]goimage.Point{{
+		{rect.Center.X - rect.Width/2, rect.Center.Y - rect.Height/2},
+		{rect.Center.X + rect.Width/2, rect.Center.Y - rect.Height/2},
+		{rect.Center.X + rect.Width/2, rect.Center.Y + rect.Height/2},
+		{rect.Center.X - rect.Width/2, rect.Center.Y + rect.Height/2},
+	}})
+	straightCopy := i.Clone()
+	defer straightCopy.Close()
+	gocv.DrawContours(&straightCopy, straightRectPoints, -1, color.RGBA{255, 255, 255, 255}, 3)
+	storeDebug(&straightCopy, "10-deskewed-min-rectangle")
+
+	fmt.Printf("straightRectPoints.ToPoints() = %+v\n", straightRectPoints.ToPoints())
+	// Now let's crop the rectangle
+	straightRect := goimage.Rectangle{
+		goimage.Point{
+			max(rect.Center.X-rect.Width/2.0, 0), // x0
+			max(rect.Center.Y-rect.Height/2, 0),  // y0
+		},
+		goimage.Point{
+			min(rect.Center.X+rect.Width/2, i.Cols()),  // x1
+			min(rect.Center.Y+rect.Height/2, i.Rows()), // y1
+		},
 	}
 
-	transform := gocv.GetPerspectiveTransform(
-		gocv.NewPointVectorFromPoints(rect.Points),
-		gocv.NewPointVectorFromPoints(newPoints),
-	)
-	gocv.WarpPerspective(*i, i, transform, goimage.Point{rect.Width, rect.Height})
-	storeDebug(i, "8-WarpPerspective")
+	fmt.Printf("straightRect = %+v\n", straightRect)
+	fmt.Printf("x = %+v\n", straightRect.Min.X)
+	fmt.Printf("y = %+v\n", straightRect.Min.Y)
+	fmt.Printf("width = %+v\n", straightRect.Size().X)
+	fmt.Printf("height = %+v\n", straightRect.Size().Y)
+	fmt.Printf("x + width = %+v\n", straightRect.Min.X+straightRect.Size().X)
+	fmt.Printf("y + height = %+v\n", straightRect.Min.Y+straightRect.Size().Y)
+	fmt.Printf("i.Cols() = %+v\n", i.Cols())
+	fmt.Printf("i.Rows() = %+v\n", i.Rows())
 
-	// TODO: Not needed? We do it in one step above
-	// TODO: If we want to detect more than one blocks of text, then we need
-	// to first deskew the original image without cropping.
-	//
-	// skewAngle := calculateSkewAngle(rect.Angle)
-	// rotateImg(i, skewAngle)
+	croppedMat := i.Region(straightRect)
+	if !croppedMat.IsContinuous() {
+		croppedMat = croppedMat.Clone()
+	}
+	storeDebug(&croppedMat, "11-cropped")
+	*i = croppedMat
 }
 
 // calculateSkewAngle take the angle of the min area rectagle and return the
@@ -160,11 +185,11 @@ func calculateSkewAngle(angle float64) float64 {
 }
 
 // Rotate the image around its center
-func rotateImg(i *gocv.Mat, angle float64) {
+func rotateImg(i *gocv.Mat, center goimage.Point, angle float64) {
 	size := i.Size()
 	width := size[1]
 	height := size[0]
-	rMatrix := gocv.GetRotationMatrix2D(goimage.Point{X: width / 2.0, Y: height / 2.0}, angle, 1.0)
+	rMatrix := gocv.GetRotationMatrix2D(center, angle, 1.0)
 	gocv.WarpAffineWithParams(*i, i, rMatrix, goimage.Point{X: width, Y: height}, gocv.InterpolationCubic, gocv.BorderReplicate, color.RGBA{0, 0, 0, 0})
 }
 
@@ -188,4 +213,18 @@ func showImg(i gocv.Mat) {
 		}
 	}
 	w.Close()
+}
+
+func min(a, b int) int {
+	if a < b {
+		return a
+	}
+	return b
+}
+
+func max(a, b int) int {
+	if a > b {
+		return a
+	}
+	return b
 }
