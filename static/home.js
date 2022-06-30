@@ -25,15 +25,12 @@ imageInput.addEventListener('change', function() {
 
 
 if (isMobile==false){
-   let camera_button = document.querySelector("#start-camera");
+
    let video = document.querySelector("#video");
    let click_button = document.querySelector("#click-photo");
    let canvas = document.querySelector("#canvas");
 
-   camera_button.addEventListener('click', async function() {
-         let stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: false });
-      video.srcObject = stream;
-   });
+
 
    click_button.addEventListener('click', function() {
          canvas.getContext('2d').drawImage(video, 0, 0, canvas.width, canvas.height);
@@ -42,8 +39,15 @@ if (isMobile==false){
          // data url of the image
          console.log(image_data_url);
          appendFileAndSubmit(image_data_url);
+   });
 
-         
+   navigator.mediaDevices.getUserMedia({ video: true, audio: false })
+   .then(function(stream) {
+      //let stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: false });
+      video.srcObject = stream;
+   })
+   .catch(function(err) {
+     /* handle the error */
    });
 }
 
@@ -54,9 +58,9 @@ function appendFileAndSubmit(ImageURL){
    // Split the base64 string in data and contentType
    var block = ImageURL.split(";");
    // Get the content type
-   var contentType = block[0].split(":")[1];// In this case "image/gif"
+   var contentType = block[0].split(":")[1];
    // get the real base64 content of the file
-   var realData = block[1].split(",")[1];// In this case "iVBORw0KGg...."
+   var realData = block[1].split(",")[1];
    console.log(contentType);
    // Convert to blob
    var blob = b64toBlob(realData, contentType);

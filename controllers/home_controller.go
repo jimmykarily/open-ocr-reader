@@ -1,9 +1,11 @@
 package controllers
 
 import (
+	"fmt"
 	"io/ioutil"
 	"net/http"
 	"os"
+	"strings"
 	"text/template"
 
 	"github.com/pkg/errors"
@@ -51,9 +53,30 @@ func RenderWithLayout(pageTemplate string, w http.ResponseWriter, data interface
 }
 
 func Home(w http.ResponseWriter, r *http.Request) {
+	//	ua := r.Header.Get("User-Agent")
+	ismobile := is_mobile(r.Header.Get("User-Agent"))
+	if ismobile {
+		fmt.Printf("user agent is: MOBILE")
+	} else {
+		fmt.Printf("user agent is NOT MOBILE")
+	}
 	err := RenderWithLayout("home", w, nil)
 	if err != nil {
 		http.Error(w, err.Error(), 500)
 		return
 	}
+}
+
+func is_mobile(useragent string) bool {
+	// the list below is taken from
+	// https://github.com/bcit-ci/CodeIgniter/blob/develop/system/libraries/User_agent.php
+
+	mobiles := []string{"Mobile Explorer", "Palm", "Motorola", "Nokia", "Palm", "Apple iPhone", "iPad", "Apple iPod Touch", "Sony Ericsson", "Sony Ericsson", "BlackBerry", "O2 Cocoon", "Treo", "LG", "Amoi", "XDA", "MDA", "Vario", "HTC", "Samsung", "Sharp", "Siemens", "Alcatel", "BenQ", "HP iPaq", "Motorola", "PlayStation Portable", "PlayStation 3", "PlayStation Vita", "Danger Hiptop", "NEC", "Panasonic", "Philips", "Sagem", "Sanyo", "SPV", "ZTE", "Sendo", "Nintendo DSi", "Nintendo DS", "Nintendo 3DS", "Nintendo Wii", "Open Web", "OpenWeb", "Android", "Symbian", "SymbianOS", "Palm", "Symbian S60", "Windows CE", "Obigo", "Netfront Browser", "Openwave Browser", "Mobile Explorer", "Opera Mini", "Opera Mobile", "Firefox Mobile", "Digital Paths", "AvantGo", "Xiino", "Novarra Transcoder", "Vodafone", "NTT DoCoMo", "O2", "mobile", "wireless", "j2me", "midp", "cldc", "up.link", "up.browser", "smartphone", "cellphone", "Generic Mobile"}
+
+	for _, device := range mobiles {
+		if strings.Index(useragent, device) > -1 {
+			return true
+		}
+	}
+	return false
 }
