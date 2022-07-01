@@ -128,11 +128,21 @@ func deskew(i *gocv.Mat) {
 	rotateImg(i, rect.Center, skewAngle)
 	storeDebug(i, "9-deskew")
 
+	var straightWidth, straightHeight int
+	if rect.Angle < -45 {
+		straightWidth = rect.Width
+		straightHeight = rect.Height
+	}
+	if rect.Angle > 45 {
+		straightWidth = rect.Height
+		straightHeight = rect.Width
+	}
+
 	straightRectPoints := gocv.NewPointsVectorFromPoints([][]goimage.Point{{
-		{rect.Center.X - rect.Width/2, rect.Center.Y - rect.Height/2},
-		{rect.Center.X + rect.Width/2, rect.Center.Y - rect.Height/2},
-		{rect.Center.X + rect.Width/2, rect.Center.Y + rect.Height/2},
-		{rect.Center.X - rect.Width/2, rect.Center.Y + rect.Height/2},
+		{rect.Center.X - straightWidth/2, rect.Center.Y - straightHeight/2},
+		{rect.Center.X + straightWidth/2, rect.Center.Y - straightHeight/2},
+		{rect.Center.X + straightWidth/2, rect.Center.Y + straightHeight/2},
+		{rect.Center.X - straightWidth/2, rect.Center.Y + straightHeight/2},
 	}})
 	straightCopy := i.Clone()
 	defer straightCopy.Close()
@@ -143,12 +153,12 @@ func deskew(i *gocv.Mat) {
 	// Now let's crop the rectangle
 	straightRect := goimage.Rectangle{
 		goimage.Point{
-			max(rect.Center.X-rect.Width/2.0, 0), // x0
-			max(rect.Center.Y-rect.Height/2, 0),  // y0
+			max(rect.Center.X-straightWidth/2, 0),  // x0
+			max(rect.Center.Y-straightHeight/2, 0), // y0
 		},
 		goimage.Point{
-			min(rect.Center.X+rect.Width/2, i.Cols()),  // x1
-			min(rect.Center.Y+rect.Height/2, i.Rows()), // y1
+			min(rect.Center.X+straightWidth/2, i.Cols()),  // x1
+			min(rect.Center.Y+straightHeight/2, i.Rows()), // y1
 		},
 	}
 
