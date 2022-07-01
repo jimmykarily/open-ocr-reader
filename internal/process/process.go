@@ -6,6 +6,7 @@ import (
 	"fmt"
 	goimage "image"
 	"image/color"
+	"math"
 	"os"
 	"path/filepath"
 	"sort"
@@ -87,10 +88,15 @@ func deskew(i *gocv.Mat) {
 	// gocv.GaussianBlur(tmpImg, &tmpImg, goimage.Point{}, 1, 1, gocv.BorderDefault)
 	// storeDebug(&tmpImg, "3-after-gaussionblur")
 
-	_ = gocv.Threshold(tmpImg, &tmpImg, 0, 255, gocv.ThresholdBinaryInv+gocv.ThresholdOtsu)
+	_ = gocv.Threshold(tmpImg, &tmpImg, 127, 255, gocv.ThresholdBinaryInv) //+gocv.ThresholdOtsu)
 	storeDebug(&tmpImg, "4-after-threshold")
 
-	kernel := gocv.GetStructuringElement(gocv.MorphEllipse, goimage.Point{5, 5})
+	// TODO: this is a hack. We decide what the kernel size is based on the resolution
+	// of the image. This means, we assume what the approximate size of each character is
+	// a certain percentage of the total page.
+	kernelWidth := i.Cols() / 120
+	kernelHeight := i.Rows() / 120
+	kernel := gocv.GetStructuringElement(gocv.MorphEllipse, goimage.Point{kernelWidth, kernelHeight})
 	gocv.DilateWithParams(tmpImg, &tmpImg, kernel, goimage.Point{}, 5, gocv.BorderDefault, color.RGBA{})
 	storeDebug(&tmpImg, "5-after-dilate")
 
@@ -128,15 +134,19 @@ func deskew(i *gocv.Mat) {
 	rotateImg(i, rect.Center, skewAngle)
 	storeDebug(i, "9-deskew")
 
+	fmt.Printf("rect.Angle = %+v\n", rect.Angle)
 	var straightWidth, straightHeight int
-	if rect.Angle < -45 {
+	if math.Abs(rect.Angle) < 45 {
 		straightWidth = rect.Width
 		straightHeight = rect.Height
-	}
-	if rect.Angle > 45 {
+	} else {
 		straightWidth = rect.Height
 		straightHeight = rect.Width
 	}
+	fmt.Printf("rect.Width = %+v\n", rect.Width)
+	fmt.Printf("rect.Height = %+v\n", rect.Height)
+	fmt.Printf("straightWidth = %+v\n", straightWidth)
+	fmt.Printf("straightHeight = %+v\n", straightHeight)
 
 	straightRectPoints := gocv.NewPointsVectorFromPoints([][]goimage.Point{{
 		{rect.Center.X - straightWidth/2, rect.Center.Y - straightHeight/2},
