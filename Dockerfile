@@ -1,5 +1,5 @@
 FROM opensuse/tumbleweed AS build
-RUN zypper update
+RUN zypper refresh
 RUN zypper install -y opencv-devel tesseract-ocr-devel leptonica-devel git go gcc-c++ openblas-devel libgomp1 libatomic1 python38 python38-pip python38-devel
 RUN pip3 install --upgrade pip
 RUN pip3 install --upgrade wheel setuptools
