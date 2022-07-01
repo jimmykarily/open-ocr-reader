@@ -65,8 +65,13 @@ func (p DefaultProcessor) Process(image *img.Image) (*img.Image, error) {
 
 	deskew(&cvImg)
 
-	_ = gocv.Threshold(cvImg, &cvImg, 140, 255, gocv.ThresholdBinary)
+	_ = gocv.Threshold(cvImg, &cvImg, 127, 255, gocv.ThresholdBinary+gocv.ThresholdOtsu)
 	storeDebug(&cvImg, "12-black-and-white")
+
+	// tesseract likes borders:
+	// https://tesseract-ocr.github.io/tessdoc/ImproveQuality#dilation-and-erosion
+	gocv.CopyMakeBorder(cvImg, &cvImg, 10, 10, 10, 10, gocv.BorderConstant, color.RGBA{100, 100, 100, 255})
+	storeDebug(&cvImg, "13-withborder")
 
 	result, err := cvImg.ToImage()
 	if err != nil {
@@ -94,8 +99,8 @@ func deskew(i *gocv.Mat) {
 	// TODO: this is a hack. We decide what the kernel size is based on the resolution
 	// of the image. This means, we assume what the approximate size of each character is
 	// a certain percentage of the total page.
-	kernelWidth := i.Cols() / 120
-	kernelHeight := i.Rows() / 120
+	kernelWidth := (i.Cols() / 150) / 2
+	kernelHeight := i.Rows() / 150
 	kernel := gocv.GetStructuringElement(gocv.MorphEllipse, goimage.Point{kernelWidth, kernelHeight})
 	gocv.DilateWithParams(tmpImg, &tmpImg, kernel, goimage.Point{}, 5, gocv.BorderDefault, color.RGBA{})
 	storeDebug(&tmpImg, "5-after-dilate")

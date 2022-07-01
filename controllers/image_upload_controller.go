@@ -1,6 +1,7 @@
 package controllers
 
 import (
+	"fmt"
 	"io"
 	"io/ioutil"
 	"net/http"
@@ -42,7 +43,12 @@ func ImageUpload(w http.ResponseWriter, r *http.Request) {
 }
 
 func ReceiveFile(w http.ResponseWriter, r *http.Request) (string, int, error) {
-	r.ParseMultipartForm(32 << 20) // limit your max input length!
+	err := r.ParseMultipartForm(64 << 20) // limit your max input length!
+	if err != nil {
+		fmt.Printf("err = %+v\n", err)
+		return "", http.StatusInternalServerError, errors.Wrap(err, "parsing multipare form")
+	}
+
 	tmpFile, err := ioutil.TempFile("", "oor-upload")
 	if err != nil {
 		return "", http.StatusInternalServerError, errors.Wrap(err, "creating a tmp file")
