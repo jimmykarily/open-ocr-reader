@@ -95,7 +95,7 @@ func deskew(i *gocv.Mat) {
 	// gocv.GaussianBlur(tmpImg, &tmpImg, goimage.Point{}, 1, 1, gocv.BorderDefault)
 	// storeDebug(&tmpImg, "3-after-gaussionblur")
 
-	_ = gocv.Threshold(tmpImg, &tmpImg, 127, 255, gocv.ThresholdBinaryInv) //+gocv.ThresholdOtsu)
+	_ = gocv.Threshold(tmpImg, &tmpImg, 100, 255, gocv.ThresholdBinaryInv) //+gocv.ThresholdOtsu)
 	storeDebug(&tmpImg, "4-after-threshold")
 
 	// TODO: this is a hack. We decide what the kernel size is based on the resolution
@@ -103,7 +103,7 @@ func deskew(i *gocv.Mat) {
 	// a certain percentage of the total page.
 	kernelWidth := (i.Cols() / 150) / 2
 	kernelHeight := i.Rows() / 150
-	kernel := gocv.GetStructuringElement(gocv.MorphEllipse, goimage.Point{kernelWidth, kernelHeight})
+	kernel := gocv.GetStructuringElement(gocv.MorphRect, goimage.Point{kernelWidth, kernelHeight})
 	gocv.DilateWithParams(tmpImg, &tmpImg, kernel, goimage.Point{}, 5, gocv.BorderDefault, color.RGBA{})
 	storeDebug(&tmpImg, "5-after-dilate")
 
