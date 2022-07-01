@@ -46,7 +46,7 @@ func NewDefaultProcessor() DefaultProcessor {
 // - Find a containing rectangle of that block of text and deskew the image
 //   based on that rectangle (align the text vertically)
 // - Crop image to that rectangle
-// Heavily inspried by this:
+// Heavily inspired by these:
 // https://github.com/JPLeoRX/opencv-text-deskew/blob/master/python-service/services/deskew_service.py
 // https://becominghuman.ai/how-to-automatically-deskew-straighten-a-text-image-using-opencv-a0c30aed83df
 // https://github.com/milosgajdos/gocv-playground/blob/master/04_Geometric_Transformations/README.md#perspective-transformation
@@ -90,6 +90,8 @@ func deskew(i *gocv.Mat) {
 	tmpImg := i.Clone()
 	defer tmpImg.Close()
 
+	// TODO: Blurring doesn't seem to improve things. Maybe it would work with
+	// different Thresholding below.
 	// gocv.GaussianBlur(tmpImg, &tmpImg, goimage.Point{}, 1, 1, gocv.BorderDefault)
 	// storeDebug(&tmpImg, "3-after-gaussionblur")
 
@@ -139,7 +141,7 @@ func deskew(i *gocv.Mat) {
 	rotateImg(i, rect.Center, skewAngle)
 	storeDebug(i, "9-deskew")
 
-	fmt.Printf("rect.Angle = %+v\n", rect.Angle)
+	// Construct the straight rectangle that contains our text (in the, now deskewed, image)
 	var straightWidth, straightHeight int
 	if math.Abs(rect.Angle) < 45 {
 		straightWidth = rect.Width
@@ -148,10 +150,6 @@ func deskew(i *gocv.Mat) {
 		straightWidth = rect.Height
 		straightHeight = rect.Width
 	}
-	fmt.Printf("rect.Width = %+v\n", rect.Width)
-	fmt.Printf("rect.Height = %+v\n", rect.Height)
-	fmt.Printf("straightWidth = %+v\n", straightWidth)
-	fmt.Printf("straightHeight = %+v\n", straightHeight)
 
 	straightRectPoints := gocv.NewPointsVectorFromPoints([][]goimage.Point{{
 		{rect.Center.X - straightWidth/2, rect.Center.Y - straightHeight/2},
@@ -159,12 +157,12 @@ func deskew(i *gocv.Mat) {
 		{rect.Center.X + straightWidth/2, rect.Center.Y + straightHeight/2},
 		{rect.Center.X - straightWidth/2, rect.Center.Y + straightHeight/2},
 	}})
+	// Draw the straight rectangle for debugging
 	straightCopy := i.Clone()
 	defer straightCopy.Close()
 	gocv.DrawContours(&straightCopy, straightRectPoints, -1, color.RGBA{255, 255, 255, 255}, 3)
 	storeDebug(&straightCopy, "10-deskewed-min-rectangle")
 
-	fmt.Printf("straightRectPoints.ToPoints() = %+v\n", straightRectPoints.ToPoints())
 	// Now let's crop the rectangle
 	straightRect := goimage.Rectangle{
 		goimage.Point{
@@ -177,17 +175,8 @@ func deskew(i *gocv.Mat) {
 		},
 	}
 
-	fmt.Printf("straightRect = %+v\n", straightRect)
-	fmt.Printf("x = %+v\n", straightRect.Min.X)
-	fmt.Printf("y = %+v\n", straightRect.Min.Y)
-	fmt.Printf("width = %+v\n", straightRect.Size().X)
-	fmt.Printf("height = %+v\n", straightRect.Size().Y)
-	fmt.Printf("x + width = %+v\n", straightRect.Min.X+straightRect.Size().X)
-	fmt.Printf("y + height = %+v\n", straightRect.Min.Y+straightRect.Size().Y)
-	fmt.Printf("i.Cols() = %+v\n", i.Cols())
-	fmt.Printf("i.Rows() = %+v\n", i.Rows())
-
 	croppedMat := i.Region(straightRect)
+	// https://answers.opencv.org/question/22742/create-a-memory-continuous-cvmat-any-api-could-do-that/
 	if !croppedMat.IsContinuous() {
 		croppedMat = croppedMat.Clone()
 	}
@@ -197,7 +186,7 @@ func deskew(i *gocv.Mat) {
 
 // calculateSkewAngle take the angle of the min area rectagle and return the
 // angle to rotate the image in order to deskew the document.
-// Currently WarpPerspective does both in one step.
+// WarpPerspective does both in one step but it's a pain get the orientation right.
 func calculateSkewAngle(angle float64) float64 {
 	if angle < -45 {
 		return 90 + angle
