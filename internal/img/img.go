@@ -7,8 +7,8 @@ import (
 	"io/ioutil"
 	"os"
 
-	_ "image/jpeg"
-	"image/png"
+	"image/jpeg"
+	_ "image/png"
 
 	"github.com/pkg/errors"
 )
@@ -43,10 +43,10 @@ func (image Image) StoreTmp() (string, error) {
 	}
 	defer file.Close()
 
-	// Encode to `PNG` with `DefaultCompression` level then save to file
-	err = png.Encode(file, image.Object)
+	// Encode to `JPEG` with `DefaultCompression` level then save to file
+	err = jpeg.Encode(file, image.Object, &jpeg.Options{Quality: 100})
 	if err != nil {
-		return "", errors.Wrap(err, "encoding the image as png")
+		return "", errors.Wrap(err, "encoding the image as jpeg")
 	}
 
 	return file.Name(), nil

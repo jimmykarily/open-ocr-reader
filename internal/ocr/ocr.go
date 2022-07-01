@@ -30,8 +30,11 @@ func (t TesseractOCR) Parse(img *img.Image) (string, error) {
 	defer os.Remove(imgPath)
 
 	client := gosseract.NewClient()
-	//client.Languages = []string{"ell", "eng"}
-	client.Languages = []string{"ell"}
+	lang := os.Getenv("OOR_LANG")
+	if lang == "" {
+		lang = "eng"
+	}
+	client.Languages = []string{lang}
 	defer client.Close()
 	client.SetImage(imgPath)
 	text, err := client.Text()

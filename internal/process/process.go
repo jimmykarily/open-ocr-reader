@@ -3,9 +3,12 @@
 package process
 
 import (
+	"fmt"
 	goimage "image"
 	"image/color"
+	"math"
 	"os"
+	"path/filepath"
 	"sort"
 
 	"github.com/jimmykarily/open-ocr-reader/internal/img"
@@ -43,12 +46,11 @@ func NewDefaultProcessor() DefaultProcessor {
 // - Find a containing rectangle of that block of text and deskew the image
 //   based on that rectangle (align the text vertically)
 // - Crop image to that rectangle
-// Heavily inspried by this:
+// Heavily inspired by these:
 // https://github.com/JPLeoRX/opencv-text-deskew/blob/master/python-service/services/deskew_service.py
 // https://becominghuman.ai/how-to-automatically-deskew-straighten-a-text-image-using-opencv-a0c30aed83df
 // https://github.com/milosgajdos/gocv-playground/blob/master/04_Geometric_Transformations/README.md#perspective-transformation
 func (p DefaultProcessor) Process(image *img.Image) (*img.Image, error) {
-
 	imgPath, err := image.StoreTmp()
 	if err != nil {
 		return nil, errors.Wrap(err, "storing the image to a temp file")
@@ -56,10 +58,20 @@ func (p DefaultProcessor) Process(image *img.Image) (*img.Image, error) {
 	defer os.Remove(imgPath)
 
 	cvImg := gocv.IMRead(imgPath, gocv.IMReadColor)
+	storeDebug(&cvImg, "1-original")
 
 	convertToGrayscale(&cvImg)
+	storeDebug(&cvImg, "2-grayscale")
+
 	deskew(&cvImg)
-	//showImg(cvImg)
+
+	_ = gocv.Threshold(cvImg, &cvImg, 127, 255, gocv.ThresholdBinary+gocv.ThresholdOtsu)
+	storeDebug(&cvImg, "12-black-and-white")
+
+	// tesseract likes borders:
+	// https://tesseract-ocr.github.io/tessdoc/ImproveQuality#dilation-and-erosion
+	gocv.CopyMakeBorder(cvImg, &cvImg, 10, 10, 10, 10, gocv.BorderConstant, color.RGBA{100, 100, 100, 255})
+	storeDebug(&cvImg, "13-withborder")
 
 	result, err := cvImg.ToImage()
 	if err != nil {
@@ -76,12 +88,24 @@ func convertToGrayscale(i *gocv.Mat) {
 
 func deskew(i *gocv.Mat) {
 	tmpImg := i.Clone()
+	defer tmpImg.Close()
 
-	gocv.GaussianBlur(tmpImg, &tmpImg, goimage.Point{}, 1, 1, gocv.BorderDefault)
-	_ = gocv.Threshold(tmpImg, &tmpImg, 0, 255, gocv.ThresholdBinaryInv+gocv.ThresholdOtsu)
+	// TODO: Blurring doesn't seem to improve things. Maybe it would work with
+	// different Thresholding below.
+	// gocv.GaussianBlur(tmpImg, &tmpImg, goimage.Point{}, 1, 1, gocv.BorderDefault)
+	// storeDebug(&tmpImg, "3-after-gaussionblur")
 
-	kernel := gocv.GetStructuringElement(gocv.MorphRect, goimage.Point{5, 10})
+	_ = gocv.Threshold(tmpImg, &tmpImg, 127, 255, gocv.ThresholdBinaryInv) //+gocv.ThresholdOtsu)
+	storeDebug(&tmpImg, "4-after-threshold")
+
+	// TODO: this is a hack. We decide what the kernel size is based on the resolution
+	// of the image. This means, we assume what the approximate size of each character is
+	// a certain percentage of the total page.
+	kernelWidth := (i.Cols() / 150) / 2
+	kernelHeight := i.Rows() / 150
+	kernel := gocv.GetStructuringElement(gocv.MorphEllipse, goimage.Point{kernelWidth, kernelHeight})
 	gocv.DilateWithParams(tmpImg, &tmpImg, kernel, goimage.Point{}, 5, gocv.BorderDefault, color.RGBA{})
+	storeDebug(&tmpImg, "5-after-dilate")
 
 	points := gocv.FindContours(tmpImg, gocv.RetrievalList, gocv.ChainApproxSimple)
 	contours := ContoursBySize{}
@@ -90,48 +114,79 @@ func deskew(i *gocv.Mat) {
 	}
 	sort.Sort(contours)
 
-	// TODO: Debug lines, remove
-	// colors := []color.RGBA{
-	// 	{255, 0, 0, 255},
-	// 	{0, 255, 0, 255},
-	// 	{0, 0, 255, 255},
-	// }
-	// for j := range contours {
-	// 	gocv.DrawContours(&tmpImg, points, j, colors[j%len(colors)], 1)
-	// }
+	contouredImage := i.Clone()
+	defer contouredImage.Close()
+	colors := []color.RGBA{
+		{255, 0, 0, 255},
+		{0, 255, 0, 255},
+		{0, 0, 255, 255},
+	}
+	for j := range contours {
+		gocv.DrawContours(&contouredImage, points, j, colors[j%len(colors)], 1)
+	}
 	maxContour := contours[len(contours)-1]
-	//gocv.DrawContours(&tmpImg, points, maxContour.OriginalIdx, color.RGBA{100, 80, 20, 255}, 2)
+	gocv.DrawContours(&contouredImage, points, maxContour.OriginalIdx, color.RGBA{100, 80, 20, 255}, 2)
+	storeDebug(&contouredImage, "6-contoured")
 
 	rect := gocv.MinAreaRect(maxContour.Contour)
-	//rectV := gocv.NewPointsVectorFromPoints([][]goimage.Point{rect.Points})
-	//gocv.DrawContours(i, rectV, -1, color.RGBA{0, 255, 0, 255}, 3)
-	// showImg(*i)
 
-	// https://github.com/milosgajdos/gocv-playground/blob/master/04_Geometric_Transformations/README.md#perspective-transformation
-	newPoints := []goimage.Point{
-		{0, rect.Height},
-		{0, 0},
-		{rect.Width, 0},
-		{rect.Width, rect.Height},
+	// Debug
+	originalCopy := i.Clone()
+	defer originalCopy.Close()
+	rectV := gocv.NewPointsVectorFromPoints([][]goimage.Point{rect.Points})
+	gocv.DrawContours(&originalCopy, rectV, -1, color.RGBA{0, 255, 0, 255}, 3)
+	storeDebug(&originalCopy, "7-min-rectangle")
+
+	skewAngle := calculateSkewAngle(rect.Angle)
+	rotateImg(i, rect.Center, skewAngle)
+	storeDebug(i, "9-deskew")
+
+	// Construct the straight rectangle that contains our text (in the, now deskewed, image)
+	var straightWidth, straightHeight int
+	if math.Abs(rect.Angle) < 45 {
+		straightWidth = rect.Width
+		straightHeight = rect.Height
+	} else {
+		straightWidth = rect.Height
+		straightHeight = rect.Width
 	}
 
-	transform := gocv.GetPerspectiveTransform(
-		gocv.NewPointVectorFromPoints(rect.Points),
-		gocv.NewPointVectorFromPoints(newPoints),
-	)
-	gocv.WarpPerspective(*i, i, transform, goimage.Point{rect.Width, rect.Height})
+	straightRectPoints := gocv.NewPointsVectorFromPoints([][]goimage.Point{{
+		{rect.Center.X - straightWidth/2, rect.Center.Y - straightHeight/2},
+		{rect.Center.X + straightWidth/2, rect.Center.Y - straightHeight/2},
+		{rect.Center.X + straightWidth/2, rect.Center.Y + straightHeight/2},
+		{rect.Center.X - straightWidth/2, rect.Center.Y + straightHeight/2},
+	}})
+	// Draw the straight rectangle for debugging
+	straightCopy := i.Clone()
+	defer straightCopy.Close()
+	gocv.DrawContours(&straightCopy, straightRectPoints, -1, color.RGBA{255, 255, 255, 255}, 3)
+	storeDebug(&straightCopy, "10-deskewed-min-rectangle")
 
-	// TODO: Not needed? We do it in one step above
-	// TODO: If we want to detect more than one blocks of text, then we need
-	// to first deskew the original image without cropping.
-	//
-	// skewAngle := calculateSkewAngle(rect.Angle)
-	// rotateImg(i, skewAngle)
+	// Now let's crop the rectangle
+	straightRect := goimage.Rectangle{
+		goimage.Point{
+			max(rect.Center.X-straightWidth/2, 0),  // x0
+			max(rect.Center.Y-straightHeight/2, 0), // y0
+		},
+		goimage.Point{
+			min(rect.Center.X+straightWidth/2, i.Cols()),  // x1
+			min(rect.Center.Y+straightHeight/2, i.Rows()), // y1
+		},
+	}
+
+	croppedMat := i.Region(straightRect)
+	// https://answers.opencv.org/question/22742/create-a-memory-continuous-cvmat-any-api-could-do-that/
+	if !croppedMat.IsContinuous() {
+		croppedMat = croppedMat.Clone()
+	}
+	storeDebug(&croppedMat, "11-cropped")
+	*i = croppedMat
 }
 
 // calculateSkewAngle take the angle of the min area rectagle and return the
 // angle to rotate the image in order to deskew the document.
-// Currently WarpPerspective does both in one step.
+// WarpPerspective does both in one step but it's a pain get the orientation right.
 func calculateSkewAngle(angle float64) float64 {
 	if angle < -45 {
 		return 90 + angle
@@ -144,12 +199,22 @@ func calculateSkewAngle(angle float64) float64 {
 }
 
 // Rotate the image around its center
-func rotateImg(i *gocv.Mat, angle float64) {
+func rotateImg(i *gocv.Mat, center goimage.Point, angle float64) {
 	size := i.Size()
 	width := size[1]
 	height := size[0]
-	rMatrix := gocv.GetRotationMatrix2D(goimage.Point{X: width / 2.0, Y: height / 2.0}, angle, 1.0)
+	rMatrix := gocv.GetRotationMatrix2D(center, angle, 1.0)
 	gocv.WarpAffineWithParams(*i, i, rMatrix, goimage.Point{X: width, Y: height}, gocv.InterpolationCubic, gocv.BorderReplicate, color.RGBA{0, 0, 0, 0})
+}
+
+// storeDebug writes an image to the filesystem if OOR_DEBUG env var is set
+func storeDebug(i *gocv.Mat, filename string) {
+	if os.Getenv("OOR_DEBUG") != "" {
+		outPath := filepath.Join("tmp", filename+".jpg")
+		if ok := gocv.IMWrite(outPath, *i); !ok {
+			panic(fmt.Sprintf("Failed to write image: %s\n", outPath))
+		}
+	}
 }
 
 func showImg(i gocv.Mat) {
@@ -162,4 +227,18 @@ func showImg(i gocv.Mat) {
 		}
 	}
 	w.Close()
+}
+
+func min(a, b int) int {
+	if a < b {
+		return a
+	}
+	return b
+}
+
+func max(a, b int) int {
+	if a > b {
+		return a
+	}
+	return b
 }
