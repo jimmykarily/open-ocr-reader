@@ -2,7 +2,7 @@ FROM opensuse/tumbleweed AS build
 RUN zypper refresh
 RUN zypper install -y opencv-devel tesseract-ocr-devel leptonica-devel git go gcc-c++ openblas-devel libgomp1 libatomic1 python38 python38-pip python38-devel
 RUN pip3 install --upgrade pip
-RUN pip3 install --upgrade wheel setuptools
+RUN pip3 install --upgrade wheel setuptools regex==2022.3.2
 RUN pip3 install -f 'https://synesthesiam.github.io/prebuilt-apps/' -f 'https://download.pytorch.org/whl/cpu/torch_stable.html' larynx==1.1.0
 
 FROM build AS ocr-container

@@ -5,7 +5,6 @@ import (
 	"io"
 	"os"
 	"os/exec"
-	"regexp"
 
 	"github.com/jimmykarily/open-ocr-reader/internal/logger"
 )
@@ -22,8 +21,6 @@ func NewDefaultTTS() DefaultTTS {
 
 func (t DefaultTTS) Speak(text string) error {
 	logger := logger.New()
-	var re = regexp.MustCompile(`![0-9A-Za-zÀ-ÖØ-öø-ÿ'".,:;\s\n]`)
-	text = re.ReplaceAllString(text, "")
 	f, err1 := os.Create("output.wav")
 	if err1 != nil {
 		return err1
@@ -54,13 +51,13 @@ func (t DefaultTTS) Speak(text string) error {
 		return err
 	}
 	// The generated stream is a stream raw 16-bit 22050Hz mono PCM audio to play it use cat output.wav | aplay -r 22050 -c 1 -f S16_LE
+	errStr, err2 := io.ReadAll(errStream)
+	if err2 != nil {
+		return err2
+	}
 	logger.Log("End of the audio steam\n")
 	err = larynxCmd.Wait()
 	if err != nil {
-		errStr, err2 := io.ReadAll(errStream)
-		if err2 != nil {
-			return err2
-		}
 		logger.Log(string(errStr))
 		return err
 	}
