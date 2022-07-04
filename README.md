@@ -1,5 +1,7 @@
 *This project started as part of openSUSE HackWeek 21: https://hackweek.opensuse.org/21/projects/open-source-book-reader-for-visually-impaired*
 
+**This is currently work in progress. It already produces some promising results but it's far from fulfilling its promise**
+
 Planning board: https://github.com/jimmykarily/open-ocr-reader/projects/1
 
 Reading a book is delight most of us can enjoy without thinking too much about it. It's not the same for blind or visually impaired people.
