@@ -86,6 +86,8 @@ func convertToGrayscale(i *gocv.Mat) {
 	gocv.CvtColor(*i, i, gocv.ColorBGRToGray)
 }
 
+// TODO: Try Canny edge detection to avoid the "shade" at the center of the book:
+// https://learnopencv.com/edge-detection-using-opencv/
 func deskew(i *gocv.Mat) {
 	tmpImg := i.Clone()
 	defer tmpImg.Close()
