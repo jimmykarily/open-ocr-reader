@@ -1,0 +1,18 @@
+FROM ubuntu:20.04
+
+# Install tzdata here to avoid dialogs in `make deps`
+RUN ln -fs /usr/share/zoneinfo/Europe/Athens /etc/localtime
+RUN export DEBIAN_FRONTEND=noninteractive
+RUN apt -y update && apt install -y --no-install-recommends git make g++ sudo tzdata wget ca-certificates libleptonica-dev libtesseract-dev tesseract-ocr-ell
+
+# Install go 1.18
+# https://go.dev/doc/install
+RUN wget https://go.dev/dl/go1.18.3.linux-amd64.tar.gz
+RUN rm -rf /usr/local/go && tar -C /usr/local -xzf go1.18.3.linux-amd64.tar.gz
+ENV PATH=$PATH:/usr/local/go/bin
+
+# Install opencv
+RUN git clone https://github.com/hybridgroup/gocv.git
+WORKDIR gocv
+RUN make deps
+RUN make install
