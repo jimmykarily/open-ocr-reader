@@ -2,9 +2,10 @@
 package tts
 
 import (
-	"io"
+	"io/ioutil"
+	"net/http"
+	"net/url"
 	"os"
-	"os/exec"
 
 	"github.com/jimmykarily/open-ocr-reader/internal/logger"
 )
@@ -26,39 +27,41 @@ func (t DefaultTTS) Speak(text string) error {
 		return err1
 	}
 	defer f.Close()
-	larynxCmd := exec.Command("larynx", "--raw-stream", text)
-	audioStream, err := larynxCmd.StdoutPipe()
+
+	ttsIP := os.Getenv("TTS_IP")
+	if ttsIP == "" {
+		ttsIP = "127.0.0.1"
+	}
+
+	ttsPort := os.Getenv("TTS_PORT")
+	if ttsPort == "" {
+		ttsPort = "5002"
+	}
+
+	ttsVoice := os.Getenv("TTS_VOICE")
+	if ttsVoice == "" {
+		ttsVoice = "en-us/harvard-glow_tts"
+	}
+
+	data := url.Values{
+		"voice":            {ttsVoice},
+		"vocoder":          {"hifi_gan/universal_large"},
+		"denoiserStrength": {"0.005"},
+		"noiseScale":       {"0.667"},
+		"lengthScale":      {"1"},
+		"ssml":             {"on"},
+		"text":             {text},
+	}
+	resp, err := http.Get("http://" + ttsIP + ":" + ttsPort + "/api/tts?" + data.Encode())
 	if err != nil {
+		logger.Log(err.Error())
 		return err
 	}
-	errStream, err := larynxCmd.StderrPipe()
+	defer resp.Body.Close()
+	body, err := ioutil.ReadAll(resp.Body)
+	_, err = f.Write(body)
 	if err != nil {
-		return err
-	}
-	err = larynxCmd.Start()
-	if err != nil {
-		return err
-	}
-	bytesRead := make([]byte, 1000)
-	n, err := audioStream.Read(bytesRead)
-	for ; err == nil; n, err = audioStream.Read(bytesRead) {
-		_, err = f.Write(bytesRead[:n])
-		if err != nil {
-			return err
-		}
-	}
-	if err != io.EOF {
-		return err
-	}
-	// The generated stream is a stream raw 16-bit 22050Hz mono PCM audio to play it use cat output.wav | aplay -r 22050 -c 1 -f S16_LE
-	errStr, err2 := io.ReadAll(errStream)
-	if err2 != nil {
-		return err2
-	}
-	logger.Log("End of the audio steam\n")
-	err = larynxCmd.Wait()
-	if err != nil {
-		logger.Log(string(errStr))
+		logger.Log(err.Error())
 		return err
 	}
 	return nil
