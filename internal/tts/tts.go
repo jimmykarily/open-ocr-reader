@@ -58,7 +58,12 @@ func (t DefaultTTS) Speak(text string) error {
 		return err
 	}
 	defer resp.Body.Close()
+
 	body, err := ioutil.ReadAll(resp.Body)
+	if err != nil {
+		logger.Log(err.Error())
+		return err
+	}
 	_, err = f.Write(body)
 	if err != nil {
 		logger.Log(err.Error())
